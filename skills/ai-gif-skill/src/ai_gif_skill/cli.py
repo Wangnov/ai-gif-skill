@@ -13,6 +13,7 @@ from .template import (
     DEFAULT_CELL_HEIGHT,
     DEFAULT_CELL_WIDTH,
     DEFAULT_COLS,
+    DEFAULT_GUIDE_GRID,
     DEFAULT_KEY_COLOR,
     DEFAULT_ROWS,
     GridSpec,
@@ -32,6 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     template_parser.add_argument("--gutter", type=int, default=0)
     template_parser.add_argument("--margin", type=int, default=0)
     template_parser.add_argument("--background", default=DEFAULT_KEY_COLOR)
+    template_parser.add_argument("--no-guide-grid", action="store_false", dest="guide_grid", default=DEFAULT_GUIDE_GRID)
     template_parser.add_argument("--output-svg", type=Path, required=True)
     template_parser.add_argument("--output-png", type=Path)
 
@@ -95,6 +97,7 @@ def main(argv: list[str] | None = None, stdout: TextIO | None = None, stderr: Te
                 background=args.background,
                 svg_path=args.output_svg,
                 png_path=args.output_png,
+                guide_grid=args.guide_grid,
             )
             payload["command"] = "template"
         elif args.command == "generate":

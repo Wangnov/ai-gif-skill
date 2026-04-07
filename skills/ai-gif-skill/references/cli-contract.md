@@ -8,7 +8,7 @@ This CLI is agent-first. Prefer stable file paths and stable JSON over conversat
 
 ### `template`
 
-Purpose: write a keyed SVG template and, optionally, a PNG export.
+Purpose: write a keyed SVG template and, optionally, a PNG export with guide lines enabled by default.
 
 Primary outputs:
 
@@ -20,6 +20,9 @@ Primary outputs:
 - `sheet_width`
 - `sheet_height`
 - `background`
+- `guide_grid`
+- `guide_color`
+- `guide_thickness`
 - `svg_path`
 - `png_path`
 

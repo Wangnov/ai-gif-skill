@@ -49,3 +49,32 @@ def test_cutout_command_exposes_color_mode_options(tmp_path: Path) -> None:
     assert args.mode == "color"
     assert args.background_color is None
     assert args.tolerance > 0
+
+
+def test_template_command_enables_guide_grid_by_default(tmp_path: Path) -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "template",
+            "--output-svg",
+            str(tmp_path / "sheet.svg"),
+        ]
+    )
+
+    assert args.guide_grid is True
+
+
+def test_template_command_can_disable_guide_grid(tmp_path: Path) -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "template",
+            "--output-svg",
+            str(tmp_path / "sheet.svg"),
+            "--no-guide-grid",
+        ]
+    )
+
+    assert args.guide_grid is False

@@ -19,14 +19,18 @@ class GenerationRequest:
 
 
 def build_generation_prompt(request: GenerationRequest) -> str:
+    frame_count = request.rows * request.cols
     return (
         "You are generating a full sprite sheet image.\n"
         f"The sheet layout is {request.rows} rows and {request.cols} columns.\n"
+        f"The sheet must contain EXACTLY {frame_count} frames, arranged as {request.rows} rows by {request.cols} columns.\n"
         f"Each frame should read as approximately {request.cell_width}x{request.cell_height} pixels.\n"
         f"The background color must stay exactly {request.background}.\n"
         "Do not change the background color.\n"
+        "Do not output a different panel count or grid layout than the template.\n"
         "Do not add gradients, shadows, floor planes, props, or extra background elements.\n"
         "Keep one consistent character identity and one coherent animation progression across the whole sheet.\n"
+        "Place one frame inside each visible guided cell from the input template image.\n"
         "Respect the visible frame layout from the input template image.\n"
         f"Asset request: {request.prompt}\n"
     )
