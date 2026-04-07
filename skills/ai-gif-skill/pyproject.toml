@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling>=1.25.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ai-gif-skill"
+version = "0.1.0"
+description = "Agent-first sprite-sheet template, generation, cutout, and GIF assembly toolkit."
+requires-python = ">=3.11"
+dependencies = [
+  "google-genai>=1.30.0",
+  "Pillow>=11.0.0",
+  "rembg[cpu]>=2.0.74",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.0",
+]
+
+[project.scripts]
+ai-gif-skill = "ai_gif_skill.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai_gif_skill"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
