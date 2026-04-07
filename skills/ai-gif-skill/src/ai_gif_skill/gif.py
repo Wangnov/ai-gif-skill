@@ -4,6 +4,8 @@ from pathlib import Path
 
 from PIL import Image
 
+from .layout_metadata import read_sheet_layout_metadata
+
 
 def _slice_sheet(sheet: Image.Image, *, rows: int, cols: int) -> list[Image.Image]:
     width, height = sheet.size
@@ -29,6 +31,12 @@ def assemble_gif_from_sheet(
     duration_ms: int = 120,
     loop: int = 0,
 ) -> dict[str, object]:
+    metadata = read_sheet_layout_metadata(sheet_path)
+    if metadata is not None and (metadata.rows != rows or metadata.cols != cols):
+        raise ValueError(
+            "Sheet layout metadata mismatch: "
+            f"metadata={metadata.rows}x{metadata.cols}, request={rows}x{cols}"
+        )
     sheet = Image.open(sheet_path).convert("RGBA")
     frames = _slice_sheet(sheet, rows=rows, cols=cols)
     output_path.parent.mkdir(parents=True, exist_ok=True)

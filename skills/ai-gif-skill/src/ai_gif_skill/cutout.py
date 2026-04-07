@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
 from statistics import median
 from typing import Callable
 
 from PIL import Image
 
+from .layout_metadata import read_sheet_layout_metadata, save_png_with_layout_metadata
 from .template import DEFAULT_KEY_COLOR, normalize_hex_color
 
 DEFAULT_CUTOUT_MODE = "color"
@@ -132,16 +134,18 @@ def run_cutout(
 
     if normalized_mode == "color":
         with Image.open(input_path) as image:
+            layout_metadata = read_sheet_layout_metadata(image)
             resolved_background = normalize_hex_color(background_color) if background_color else estimate_background_color(image)
             result = remove_solid_background(
                 image,
                 background_color=resolved_background,
                 tolerance=tolerance,
             )
-            result.save(output_path)
+            save_png_with_layout_metadata(result, output_path, layout_metadata)
             width, height = result.size
             image_mode = result.mode
     else:
+        layout_metadata = read_sheet_layout_metadata(input_path)
         source_bytes = input_path.read_bytes()
         if remove_background is None:
             from rembg import new_session, remove
@@ -150,10 +154,11 @@ def run_cutout(
             result_bytes = remove(source_bytes, session=session)
         else:
             result_bytes = remove_background(source_bytes, model=model)
-        output_path.write_bytes(result_bytes)
-        with Image.open(output_path) as image:
-            width, height = image.size
-            image_mode = image.mode
+        with Image.open(BytesIO(result_bytes)) as image:
+            output_image = image.copy()
+            save_png_with_layout_metadata(output_image, output_path, layout_metadata)
+            width, height = output_image.size
+            image_mode = output_image.mode
         resolved_background = None
 
     return {

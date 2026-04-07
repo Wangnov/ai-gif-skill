@@ -7,6 +7,9 @@ from pathlib import Path
 
 from PIL import Image
 
+from .layout_metadata import SheetLayoutMetadata, read_sheet_layout_metadata, save_png_with_layout_metadata
+from .template import normalize_hex_color
+
 
 @dataclass(frozen=True)
 class GenerationRequest:
@@ -48,6 +51,36 @@ def resolve_api_key(explicit_api_key: str | None = None) -> str:
     return entered
 
 
+def validate_template_layout_metadata(
+    image: Image.Image,
+    request: GenerationRequest,
+) -> SheetLayoutMetadata | None:
+    metadata = read_sheet_layout_metadata(image)
+    if metadata is None:
+        return None
+
+    mismatches: list[str] = []
+    if metadata.rows != request.rows:
+        mismatches.append(f"rows metadata={metadata.rows} request={request.rows}")
+    if metadata.cols != request.cols:
+        mismatches.append(f"cols metadata={metadata.cols} request={request.cols}")
+    if metadata.cell_width is not None and metadata.cell_width != request.cell_width:
+        mismatches.append(
+            f"cell_width metadata={metadata.cell_width} request={request.cell_width}"
+        )
+    if metadata.cell_height is not None and metadata.cell_height != request.cell_height:
+        mismatches.append(
+            f"cell_height metadata={metadata.cell_height} request={request.cell_height}"
+        )
+    if metadata.background is not None and normalize_hex_color(metadata.background) != normalize_hex_color(request.background):
+        mismatches.append(
+            f"background metadata={normalize_hex_color(metadata.background)} request={normalize_hex_color(request.background)}"
+        )
+    if mismatches:
+        raise ValueError("Template layout metadata mismatch: " + ", ".join(mismatches))
+    return metadata
+
+
 def generate_sheet_with_gemini(
     *,
     input_image_path: Path,
@@ -56,14 +89,17 @@ def generate_sheet_with_gemini(
     model: str = "gemini-2.5-flash-image",
     api_key: str | None = None,
 ) -> dict[str, object]:
+    with Image.open(input_image_path) as template_image:
+        validate_template_layout_metadata(template_image, request)
+        template_payload = template_image.copy()
+
     from google import genai
 
     client = genai.Client(api_key=resolve_api_key(api_key))
     prompt = build_generation_prompt(request)
-    template_image = Image.open(input_image_path)
     response = client.models.generate_content(
         model=model,
-        contents=[prompt, template_image],
+        contents=[prompt, template_payload],
     )
     parts = getattr(response, "parts", None)
     if parts is None and getattr(response, "candidates", None):
@@ -75,7 +111,15 @@ def generate_sheet_with_gemini(
             image = part.as_image()
             if image is not None:
                 output_image_path.parent.mkdir(parents=True, exist_ok=True)
-                image.save(output_image_path)
+                save_png_with_layout_metadata(
+                    image,
+                    output_image_path,
+                    SheetLayoutMetadata(
+                        rows=request.rows,
+                        cols=request.cols,
+                        background=normalize_hex_color(request.background),
+                    ),
+                )
                 saved = True
                 break
     if not saved:

@@ -1,6 +1,8 @@
 from pathlib import Path
 
+import pytest
 from PIL import Image
+from PIL.PngImagePlugin import PngInfo
 
 from ai_gif_skill.gif import assemble_gif_from_sheet
 
@@ -40,3 +42,20 @@ def test_assemble_gif_from_sheet_slices_frames_in_row_major_order(tmp_path: Path
     assert gif.n_frames == 4
     assert first.getpixel((5, 5))[:3] == (255, 0, 0)
     assert second.getpixel((5, 5))[:3] == (0, 255, 0)
+
+
+def test_assemble_gif_rejects_rows_cols_that_conflict_with_sheet_metadata(tmp_path: Path) -> None:
+    sheet_path = tmp_path / "sheet.png"
+    gif_path = tmp_path / "sheet.gif"
+    pnginfo = PngInfo()
+    pnginfo.add_text("ai_gif_skill_rows", "2")
+    pnginfo.add_text("ai_gif_skill_cols", "2")
+    Image.new("RGBA", (30, 20), (0, 0, 0, 0)).save(sheet_path, pnginfo=pnginfo)
+
+    with pytest.raises(ValueError, match="Sheet layout metadata"):
+        assemble_gif_from_sheet(
+            sheet_path=sheet_path,
+            output_path=gif_path,
+            rows=2,
+            cols=3,
+        )

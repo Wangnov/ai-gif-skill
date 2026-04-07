@@ -69,3 +69,23 @@ def test_write_template_assets_can_disable_guided_png_grid(tmp_path: Path) -> No
     assert metadata["guide_color"] is None
     assert image.getpixel((100, 40)) == (0, 255, 0)
     assert image.getpixel((50, 80)) == (0, 255, 0)
+
+
+def test_write_template_assets_embeds_layout_metadata_in_png(tmp_path: Path) -> None:
+    svg_path = tmp_path / "sheet.svg"
+    png_path = tmp_path / "sheet.png"
+    spec = GridSpec(rows=3, cols=3, cell_width=96, cell_height=64, gutter=0, margin=0)
+
+    write_template_assets(
+        spec=spec,
+        background="#00FF00",
+        svg_path=svg_path,
+        png_path=png_path,
+    )
+
+    with Image.open(png_path) as image:
+        assert image.info["ai_gif_skill_rows"] == "3"
+        assert image.info["ai_gif_skill_cols"] == "3"
+        assert image.info["ai_gif_skill_cell_width"] == "96"
+        assert image.info["ai_gif_skill_cell_height"] == "64"
+        assert image.info["ai_gif_skill_background"] == "#00FF00"

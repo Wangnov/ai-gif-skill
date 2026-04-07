@@ -2,6 +2,8 @@ import io
 import json
 from pathlib import Path
 
+import pytest
+
 from ai_gif_skill.cli import build_parser, main
 
 
@@ -78,3 +80,35 @@ def test_template_command_can_disable_guide_grid(tmp_path: Path) -> None:
     )
 
     assert args.guide_grid is False
+
+
+def test_generate_command_requires_explicit_rows_and_cols(tmp_path: Path) -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "generate",
+                "--input-image",
+                str(tmp_path / "template.png"),
+                "--output-image",
+                str(tmp_path / "generated.png"),
+                "--prompt",
+                "test",
+            ]
+        )
+
+
+def test_gif_command_requires_explicit_rows_and_cols(tmp_path: Path) -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "gif",
+                "--input-sheet",
+                str(tmp_path / "cutout.png"),
+                "--output-gif",
+                str(tmp_path / "final.gif"),
+            ]
+        )

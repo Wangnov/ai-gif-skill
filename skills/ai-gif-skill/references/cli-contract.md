@@ -8,7 +8,7 @@ This CLI is agent-first. Prefer stable file paths and stable JSON over conversat
 
 ### `template`
 
-Purpose: write a keyed SVG template and, optionally, a PNG export with guide lines enabled by default.
+Purpose: write a keyed SVG template and, optionally, a PNG export with guide lines enabled by default. The PNG carries embedded layout metadata for downstream validation.
 
 Primary outputs:
 
@@ -28,7 +28,7 @@ Primary outputs:
 
 ### `generate`
 
-Purpose: call Gemini image generation with the template image and built-in prompt rules.
+Purpose: call Gemini image generation with the template image and built-in prompt rules. `rows` and `cols` are explicit required inputs for this command. If the input template PNG contains embedded layout metadata, this command validates it before making the Gemini call. The written `generated.png` also carries layout metadata forward.
 
 Primary outputs:
 
@@ -42,7 +42,7 @@ Primary outputs:
 
 ### `cutout`
 
-Purpose: remove the solid-color background with color keying by default, or with `rembg` when explicitly requested.
+Purpose: remove the solid-color background with color keying by default, or with `rembg` when explicitly requested. If the input PNG carries layout metadata, the output PNG preserves it.
 
 Primary outputs:
 
@@ -59,7 +59,7 @@ Primary outputs:
 
 ### `gif`
 
-Purpose: slice a sheet in row-major order and assemble a GIF.
+Purpose: slice a sheet in row-major order and assemble a GIF. `rows` and `cols` are explicit required inputs for this command. If the input PNG carries layout metadata, this command validates it before slicing.
 
 Primary outputs:
 

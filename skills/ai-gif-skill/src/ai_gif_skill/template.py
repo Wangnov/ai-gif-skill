@@ -5,6 +5,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
+from .layout_metadata import SheetLayoutMetadata, save_png_with_layout_metadata
+
 DEFAULT_ROWS = 2
 DEFAULT_COLS = 8
 DEFAULT_CELL_WIDTH = 768
@@ -142,7 +144,17 @@ def write_template_assets(
                 guide_color=guide_color,
                 guide_thickness=guide_thickness,
             )
-        image.save(png_path)
+        save_png_with_layout_metadata(
+            image,
+            png_path,
+            SheetLayoutMetadata(
+                rows=spec.rows,
+                cols=spec.cols,
+                cell_width=spec.cell_width,
+                cell_height=spec.cell_height,
+                background=normalized_background,
+            ),
+        )
     return {
         "sheet_width": spec.sheet_width,
         "sheet_height": spec.sheet_height,

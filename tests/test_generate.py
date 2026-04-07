@@ -1,0 +1,213 @@
+import sys
+import types
+from pathlib import Path
+import os
+
+import pytest
+from PIL import Image
+from PIL.PngImagePlugin import PngInfo
+
+from ai_gif_skill.generate import GenerationRequest, generate_sheet_with_gemini
+
+
+def _write_template_png(
+    path: Path,
+    *,
+    rows: int,
+    cols: int,
+    cell_width: int = 32,
+    cell_height: int = 32,
+    background: str = "#00FF00",
+) -> None:
+    pnginfo = PngInfo()
+    pnginfo.add_text("ai_gif_skill_rows", str(rows))
+    pnginfo.add_text("ai_gif_skill_cols", str(cols))
+    pnginfo.add_text("ai_gif_skill_cell_width", str(cell_width))
+    pnginfo.add_text("ai_gif_skill_cell_height", str(cell_height))
+    pnginfo.add_text("ai_gif_skill_background", background)
+    Image.new("RGB", (cols * cell_width, rows * cell_height), background).save(path, pnginfo=pnginfo)
+
+
+def test_generate_sheet_with_gemini_rejects_template_layout_mismatch(tmp_path: Path) -> None:
+    input_path = tmp_path / "template.png"
+    output_path = tmp_path / "generated.png"
+    _write_template_png(input_path, rows=2, cols=4)
+
+    request = GenerationRequest(
+        prompt="test",
+        background="#00FF00",
+        rows=3,
+        cols=3,
+        cell_width=32,
+        cell_height=32,
+    )
+
+    with pytest.raises(ValueError, match="Template layout metadata"):
+        generate_sheet_with_gemini(
+            input_image_path=input_path,
+            output_image_path=output_path,
+            request=request,
+            api_key="test-key",
+        )
+
+
+def test_generate_sheet_with_gemini_carries_layout_metadata_to_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    input_path = tmp_path / "template.png"
+    output_path = tmp_path / "generated.png"
+    _write_template_png(input_path, rows=2, cols=4)
+
+    result_image = Image.new("RGB", (80, 40), "#00FF00")
+
+    class _FakePart:
+        def as_image(self) -> Image.Image:
+            return result_image
+
+    class _FakeModels:
+        def generate_content(self, *, model: str, contents: list[object]) -> object:
+            assert model == "gemini-2.5-flash-image"
+            assert contents
+            return types.SimpleNamespace(parts=[_FakePart()])
+
+    class _FakeClient:
+        def __init__(self, api_key: str) -> None:
+            assert api_key == "test-key"
+            self.models = _FakeModels()
+
+    fake_google = types.ModuleType("google")
+    fake_google.genai = types.SimpleNamespace(Client=_FakeClient)
+    monkeypatch.setitem(sys.modules, "google", fake_google)
+
+    request = GenerationRequest(
+        prompt="test",
+        background="#00FF00",
+        rows=2,
+        cols=4,
+        cell_width=32,
+        cell_height=32,
+    )
+
+    generate_sheet_with_gemini(
+        input_image_path=input_path,
+        output_image_path=output_path,
+        request=request,
+        api_key="test-key",
+    )
+
+    with Image.open(output_path) as image:
+        assert image.info["ai_gif_skill_rows"] == "2"
+        assert image.info["ai_gif_skill_cols"] == "4"
+
+
+def test_generate_sheet_with_gemini_handles_image_like_parts_without_pnginfo_support(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    input_path = tmp_path / "template.png"
+    output_path = tmp_path / "generated.png"
+    _write_template_png(input_path, rows=2, cols=4)
+
+    pil_image = Image.new("RGB", (80, 40), "#00FF00")
+
+    class _ImageLike:
+        def save(self, fp: object, format: str | None = None) -> None:
+            pil_image.save(fp, format=format or "PNG")
+
+    class _FakePart:
+        def as_image(self) -> _ImageLike:
+            return _ImageLike()
+
+    class _FakeModels:
+        def generate_content(self, *, model: str, contents: list[object]) -> object:
+            assert model == "gemini-2.5-flash-image"
+            assert contents
+            return types.SimpleNamespace(parts=[_FakePart()])
+
+    class _FakeClient:
+        def __init__(self, api_key: str) -> None:
+            assert api_key == "test-key"
+            self.models = _FakeModels()
+
+    fake_google = types.ModuleType("google")
+    fake_google.genai = types.SimpleNamespace(Client=_FakeClient)
+    monkeypatch.setitem(sys.modules, "google", fake_google)
+
+    request = GenerationRequest(
+        prompt="test",
+        background="#00FF00",
+        rows=2,
+        cols=4,
+        cell_width=32,
+        cell_height=32,
+    )
+
+    generate_sheet_with_gemini(
+        input_image_path=input_path,
+        output_image_path=output_path,
+        request=request,
+        api_key="test-key",
+    )
+
+    with Image.open(output_path) as image:
+        assert image.info["ai_gif_skill_rows"] == "2"
+        assert image.info["ai_gif_skill_cols"] == "4"
+
+
+def test_generate_sheet_with_gemini_handles_image_like_parts_that_only_save_to_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    input_path = tmp_path / "template.png"
+    output_path = tmp_path / "generated.png"
+    _write_template_png(input_path, rows=2, cols=4)
+
+    pil_image = Image.new("RGB", (80, 40), "#00FF00")
+
+    class _PathOnlyImageLike:
+        def save(self, fp: object, format: str | None = None) -> None:
+            if not isinstance(fp, (str, os.PathLike)):
+                raise TypeError(
+                    "argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'BytesIO'"
+                )
+            pil_image.save(fp, format=format or "PNG")
+
+    class _FakePart:
+        def as_image(self) -> _PathOnlyImageLike:
+            return _PathOnlyImageLike()
+
+    class _FakeModels:
+        def generate_content(self, *, model: str, contents: list[object]) -> object:
+            assert model == "gemini-2.5-flash-image"
+            assert contents
+            return types.SimpleNamespace(parts=[_FakePart()])
+
+    class _FakeClient:
+        def __init__(self, api_key: str) -> None:
+            assert api_key == "test-key"
+            self.models = _FakeModels()
+
+    fake_google = types.ModuleType("google")
+    fake_google.genai = types.SimpleNamespace(Client=_FakeClient)
+    monkeypatch.setitem(sys.modules, "google", fake_google)
+
+    request = GenerationRequest(
+        prompt="test",
+        background="#00FF00",
+        rows=2,
+        cols=4,
+        cell_width=32,
+        cell_height=32,
+    )
+
+    generate_sheet_with_gemini(
+        input_image_path=input_path,
+        output_image_path=output_path,
+        request=request,
+        api_key="test-key",
+    )
+
+    with Image.open(output_path) as image:
+        assert image.info["ai_gif_skill_rows"] == "2"
+        assert image.info["ai_gif_skill_cols"] == "4"

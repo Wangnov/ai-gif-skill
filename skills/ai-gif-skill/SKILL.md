@@ -27,6 +27,10 @@ Ask only for the parameters that materially change output:
 
 Do not ask the user to think in low-level CLI flags if you can translate their intent yourself.
 
+If the user already gave the asset prompt, layout, style, output filenames, and explicitly asked to continue or generate now, treat that as approved design and execute immediately. Do not stop for an extra confirmation step in that case.
+
+When the user asks for a non-default layout such as `2x4`, `3x3`, or `4x4`, treat that exact grid as authoritative. A `3x3` sheet is not an error when the user wants `3x3`; the only real error is letting downstream commands drift away from the template layout.
+
 ## 2. Generate the Template
 
 If you are already inside the skill root, run:
@@ -57,6 +61,8 @@ uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill template \
 
 The PNG now contains visible green-on-green guide lines by default. Keep them on unless you have a strong reason to disable them with `--no-guide-grid`; they materially improve layout adherence in real image generation runs. The SVG still carries invisible cell metadata.
 
+Always pass `--rows` and `--cols` explicitly when the layout matters, including the `template` step. That keeps the template itself unambiguous before any generation starts.
+
 ## 3. Generate the Sprite Sheet with Gemini
 
 Run:
@@ -73,10 +79,15 @@ Behavior:
 - Prefer `GEMINI_API_KEY` from the environment.
 - If it is missing, the script prompts for it.
 - The built-in prompt template locks the background color, locks the exact `rows x cols` frame count, and tells the model to follow the visible guide grid from the input template image.
+- Always pass `--rows` and `--cols` explicitly to `generate`. Do not rely on CLI defaults for layout-sensitive steps.
+- Treat `ai-gif-skill generate` as a local CLI invocation. Do not invoke separate `web-access` or browser setup just because Gemini is used under the hood.
+- The template PNG carries layout metadata. `generate` now validates your requested layout against that metadata and should fail loudly if you pass the wrong grid.
 
 If you need longer prompts, write them to a file and pass `--prompt-file`.
 
 When using `codex exec` from a throwaway work directory, explicitly tell the agent to call the installed project with `uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill ...`. Otherwise `uv run ai-gif-skill ...` may fail because the current directory is not the skill project.
+
+When operating through `codex exec`, run one shell command per exec call. Do not chain commands with `&&`, pipes, or multi-step cleanup snippets. Overwrite the known output files directly and only verify that `./out` contains the expected deliverables.
 
 ## 4. Remove the Background
 
@@ -101,6 +112,8 @@ Real-world fallback pattern:
 
 - if the first generation ignores the requested layout, regenerate from the same template with a stricter prompt that repeats the exact `rows x cols` requirement
 - if the first cutout leaves a faint green fringe, raise `--tolerance` slightly before considering any other approach
+- if guide lines survive the first color cutout, that usually means the generated image darkened the green grid slightly; raise `--tolerance` a little before trying anything more invasive
+- do at most one extra color-key retry after the default cutout; do not keep laddering `tolerance` upward in multiple rounds during `codex exec`
 
 ## 5. Assemble the GIF
 
@@ -116,6 +129,14 @@ uv run ai-gif-skill gif \
 ```
 
 This slices frames in row-major order.
+
+Always pass `--rows` and `--cols` explicitly to `gif` so slicing matches the current sheet instead of any default layout.
+
+The generated and cutout PNGs also carry layout metadata now. `gif` validates your requested `rows x cols` against that metadata and should fail loudly instead of silently slicing the wrong grid.
+
+Do not waste time deleting temporary prompt files outside `./out` during `codex exec` runs. The success condition is that `./out` contains only the final five deliverables.
+
+If you absolutely need a trial cutout for comparison, write it outside the working directory, such as a system temp path, and do not spend time deleting it. Never use `rm` or `apply_patch` to clean up binary PNG trial files during `codex exec`.
 
 # CLI Contract
 

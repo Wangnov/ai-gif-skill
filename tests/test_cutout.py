@@ -2,6 +2,7 @@ from io import BytesIO
 from pathlib import Path
 
 from PIL import Image
+from PIL.PngImagePlugin import PngInfo
 
 from ai_gif_skill.cutout import remove_solid_background, run_cutout
 
@@ -73,3 +74,25 @@ def test_run_cutout_writes_png_via_injected_remover(tmp_path: Path) -> None:
     assert metadata["output_path"] == str(output_path)
     assert written.mode == "RGBA"
     assert written.getpixel((0, 0))[3] == 0
+
+
+def test_run_cutout_preserves_layout_metadata_from_input(tmp_path: Path) -> None:
+    input_path = tmp_path / "input.png"
+    output_path = tmp_path / "output.png"
+
+    pnginfo = PngInfo()
+    pnginfo.add_text("ai_gif_skill_rows", "2")
+    pnginfo.add_text("ai_gif_skill_cols", "4")
+
+    source = Image.new("RGB", (4, 4), "#00FF00")
+    source.putpixel((1, 1), (40, 120, 240))
+    source.save(input_path, pnginfo=pnginfo)
+
+    run_cutout(
+        input_path=input_path,
+        output_path=output_path,
+    )
+
+    with Image.open(output_path) as written:
+        assert written.info["ai_gif_skill_rows"] == "2"
+        assert written.info["ai_gif_skill_cols"] == "4"
