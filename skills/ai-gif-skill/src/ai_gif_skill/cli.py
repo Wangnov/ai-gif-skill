@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
-from .cutout import run_cutout
+from .cutout import DEFAULT_CUTOUT_MODE, DEFAULT_CUTOUT_TOLERANCE, run_cutout
 from .generate import GenerationRequest, generate_sheet_with_gemini
 from .gif import assemble_gif_from_sheet
 from .template import (
@@ -51,7 +51,10 @@ def build_parser() -> argparse.ArgumentParser:
     cutout_parser = subparsers.add_parser("cutout")
     cutout_parser.add_argument("--input-image", type=Path, required=True)
     cutout_parser.add_argument("--output-image", type=Path, required=True)
+    cutout_parser.add_argument("--mode", choices=("color", "rembg"), default=DEFAULT_CUTOUT_MODE)
     cutout_parser.add_argument("--model", default="isnet-anime")
+    cutout_parser.add_argument("--background-color")
+    cutout_parser.add_argument("--tolerance", type=int, default=DEFAULT_CUTOUT_TOLERANCE)
 
     gif_parser = subparsers.add_parser("gif")
     gif_parser.add_argument("--input-sheet", type=Path, required=True)
@@ -115,7 +118,10 @@ def main(argv: list[str] | None = None, stdout: TextIO | None = None, stderr: Te
             payload = run_cutout(
                 input_path=args.input_image,
                 output_path=args.output_image,
+                mode=args.mode,
                 model=args.model,
+                background_color=args.background_color,
+                tolerance=args.tolerance,
             )
             payload["command"] = "cutout"
         else:

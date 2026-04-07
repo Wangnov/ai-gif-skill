@@ -39,17 +39,20 @@ Primary outputs:
 
 ### `cutout`
 
-Purpose: remove the solid-color background with rembg.
+Purpose: remove the solid-color background with color keying by default, or with `rembg` when explicitly requested.
 
 Primary outputs:
 
 - `command`
 - `input_path`
 - `output_path`
+- `mode`
 - `model`
+- `background_color`
+- `tolerance`
 - `width`
 - `height`
-- `mode`
+- `image_mode`
 
 ### `gif`
 
