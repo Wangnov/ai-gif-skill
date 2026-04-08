@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import time
 from pathlib import Path
 
@@ -10,6 +11,15 @@ from .gemini_image import resolve_api_key
 
 DEFAULT_GEMINI_VIDEO_MODEL = "veo-3.1-generate-preview"
 _POLL_INTERVAL_SECONDS = 5
+
+
+def _build_image_payload(reference_image_path: Path) -> dict[str, str]:
+    with Image.open(reference_image_path) as source_image:
+        mime_type = Image.MIME.get(source_image.format or "", "image/png")
+    return {
+        "imageBytes": base64.b64encode(reference_image_path.read_bytes()).decode("utf-8"),
+        "mimeType": mime_type,
+    }
 
 
 def generate_video(
@@ -28,8 +38,7 @@ def generate_video(
     client = genai.Client(api_key=resolve_api_key(api_key))
     image_payload = None
     if reference_image_path is not None:
-        with Image.open(reference_image_path) as source_image:
-            image_payload = source_image.copy()
+        image_payload = _build_image_payload(reference_image_path)
 
     config: dict[str, object] = {
         "duration_seconds": duration_seconds,

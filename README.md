@@ -1,27 +1,182 @@
-# AI GIF Skill Repo
+# ai-gif-skill
 
-This repository is structured as a `skills.sh`-style skills collection.
+Turn AI-generated sprite sheets or short clips into clean GIF assets with a repeatable, file-based workflow.
 
-Install the skill with:
+This repo is packaged as a `skills.sh`-style skills collection. The installable skill lives in [`skills/ai-gif-skill`](skills/ai-gif-skill).
+
+<p align="center">
+  <img src="docs/assets/video-final.gif" alt="Video workflow example GIF" width="280" />
+  <img src="docs/assets/sprite-final.gif" alt="Sprite sheet workflow example GIF" width="280" />
+</p>
+
+## Install
 
 ```bash
-npx skills add <owner>/<repo> --skill ai-gif-skill
+npx skills add Wangnov/ai-gif-skill --skill ai-gif-skill
 ```
 
-The installable skill lives at:
+After installation, the main CLI entrypoint is:
 
-```text
-skills/ai-gif-skill
+```bash
+uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill ...
 ```
 
-## What v2 Adds
+## What This Skill Does
 
-The skill is now a provider-agnostic media-to-GIF toolkit with two supported workflows:
+There are two supported workflows:
 
-1. `sheet -> cutout -> gif`
-2. `image -> video -> frames -> cutout -> gif`
+1. `template -> generate-sheet -> cutout -> gif-from-sheet`
+2. `generate-image -> generate-video -> extract-frames -> cutout-frames -> gif-from-frames`
 
-Generation stages can use Gemini or Grok independently. Local post-processing stages stay provider-neutral.
+The local post-processing steps are provider-neutral. The generation steps can mix Gemini and Grok when needed.
+
+## Recommended Defaults
+
+These recommendations are based on real local verification on **April 8, 2026**.
+
+| Goal | Recommended provider | Why |
+| --- | --- | --- |
+| Sprite sheet generation | `Gemini` | Better at respecting the provided grid template and preserving sheet layout. |
+| Video generation | `Grok` | Better fit for keyed-background animation workflows and fewer practical constraints for the tested setup. |
+| Gemini video | Compatibility path, not the default recommendation | It works, but it currently has stricter duration and aspect-ratio limits and tends to recompose the frame background. |
+
+If you only want one safe starting point:
+
+- Use `Gemini` for the **sheet workflow**
+- Use `Grok` for the **video workflow**
+
+## Example Gallery
+
+### Sprite Sheet Workflow
+
+| Pure key-color template | Generated sprite sheet | Final GIF |
+| --- | --- | --- |
+| ![Sprite template](docs/assets/sprite-template.png) | ![Generated sprite sheet](docs/assets/sprite-generated.png) | ![Sprite sheet final GIF](docs/assets/sprite-final.gif) |
+
+### Video Workflow
+
+| Reference image | Final GIF |
+| --- | --- |
+| ![Video reference image](docs/assets/video-character.png) | ![Video final GIF](docs/assets/video-final.gif) |
+
+## Quick Start
+
+### 1. Sheet Workflow
+
+Recommended default: `Gemini`
+
+```bash
+mkdir -p /tmp/ai-gif-sheet-demo/out
+cd /tmp/ai-gif-sheet-demo
+
+uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill template \
+  --rows 2 \
+  --cols 4 \
+  --cell-width 384 \
+  --cell-height 384 \
+  --background '#00FF00' \
+  --output-svg ./out/template.svg \
+  --output-png ./out/template.png
+
+uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill generate-sheet \
+  --provider gemini \
+  --input-image ./out/template.png \
+  --output-image ./out/generated.png \
+  --rows 2 \
+  --cols 4 \
+  --cell-width 384 \
+  --cell-height 384 \
+  --background '#00FF00' \
+  --prompt 'one original cute beast, pokemon-inspired, 2D cel-shaded, non-pixel-art, one coherent idle animation'
+
+uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill cutout \
+  --input-image ./out/generated.png \
+  --output-image ./out/cutout.png
+
+uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill gif-from-sheet \
+  --input-sheet ./out/cutout.png \
+  --output-gif ./out/final.gif \
+  --rows 2 \
+  --cols 4 \
+  --duration-ms 167
+```
+
+### 2. Video Workflow
+
+Recommended default: `Grok`
+
+```bash
+mkdir -p /tmp/ai-gif-video-demo/out
+cd /tmp/ai-gif-video-demo
+
+uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill generate-image \
+  --provider grok \
+  --output-image ./out/character.png \
+  --prompt 'a small fox spirit game asset on pure green background, centered, no scene, no props'
+
+uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill generate-video \
+  --provider grok \
+  --output-video ./out/clip.mp4 \
+  --reference-image ./out/character.png \
+  --duration-seconds 2 \
+  --aspect-ratio 1:1 \
+  --prompt 'animate this exact same character with a subtle looping idle motion on the same pure green background'
+
+uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill extract-frames \
+  --input-video ./out/clip.mp4 \
+  --output-dir ./out/frames \
+  --fps 6
+
+uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill cutout-frames \
+  --input-dir ./out/frames \
+  --output-dir ./out/cutout-frames \
+  --mode color \
+  --tolerance 48
+
+uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill gif-from-frames \
+  --input-dir ./out/cutout-frames \
+  --output-gif ./out/final.gif \
+  --duration-ms 167
+```
+
+## Why These Defaults
+
+### Why `Gemini` for sprite sheets
+
+- It follows the provided guide grid more reliably.
+- It behaves better when asked to preserve a fixed `rows x cols` layout.
+- It is the better default when the output must remain a clean sheet instead of a freeform illustration.
+
+### Why `Grok` for video
+
+- It handled the tested keyed-background animation workflow more naturally.
+- It was easier to use for the tested `1:1` short-loop asset flow.
+- It fits the “reference image -> short loop -> frames -> GIF” path more smoothly in this repo’s current setup.
+
+## Practical Notes
+
+- The default key color is chroma green: `#00FF00`.
+- The default sheet grid is `2x8` with `768x768` cells, but smaller grids like `2x4` are often faster for quick iteration.
+- The template PNG, generated sheet PNG, and cutout sheet PNG carry layout metadata. The sheet commands validate that metadata.
+- Frame workflows write a `frames_manifest.json` file next to extracted or cutout frame folders.
+- For compressed video frames, background removal is often more reliable when the tool estimates the border color automatically instead of assuming exact `#00FF00`.
+
+## Provider Notes
+
+### Gemini Video
+
+Gemini video is still supported, but it is **not the default recommendation** for this skill.
+
+In the tested setup, Gemini video required provider-specific constraints such as:
+
+- supported aspect ratios instead of arbitrary `1:1`
+- durations within Gemini’s accepted range
+- reference images packed in the exact SDK format
+
+That is why the skill now recommends:
+
+- `Gemini` for **sheet generation**
+- `Grok` for **video generation**
 
 ## Main Commands
 
@@ -37,82 +192,10 @@ Generation stages can use Gemini or Grok independently. Local post-processing st
 - `sheet-pipeline`
 - `video-pipeline`
 
-Legacy aliases are still supported:
+Legacy aliases:
 
 - `generate` -> `generate-sheet`
 - `gif` -> `gif-from-sheet`
-
-## Practical Notes
-
-- The default `template.png` still uses darker green guide lines on top of the chroma background so sheet generation stays layout-stable.
-- The template, generated sheet, and cutout sheet PNGs still carry layout metadata. `generate-sheet` and `gif-from-sheet` validate it.
-- Frame-based workflows write a `frames_manifest.json` next to the extracted or cutout frame directory.
-- Inside the skill project root, you can run `uv run ai-gif-skill ...`.
-- From an arbitrary working directory after installation, prefer `uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill ...`.
-- In `codex exec`, use one shell command per exec call and keep artifacts on disk instead of doing multi-step cleanup.
-
-## Sheet Workflow Example
-
-```bash
-mkdir -p /tmp/ai-gif-demo/out
-cd /tmp/ai-gif-demo
-
-uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill template \
-  --rows 2 \
-  --cols 4 \
-  --output-svg ./out/template.svg \
-  --output-png ./out/template.png
-
-uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill generate-sheet \
-  --provider gemini \
-  --input-image ./out/template.png \
-  --output-image ./out/generated.png \
-  --rows 2 \
-  --cols 4 \
-  --prompt 'one original cute beast, pokemon-inspired, 2D cel-shaded, non-pixel-art'
-
-uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill cutout \
-  --input-image ./out/generated.png \
-  --output-image ./out/cutout.png
-
-uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill gif-from-sheet \
-  --input-sheet ./out/cutout.png \
-  --output-gif ./out/final.gif \
-  --rows 2 \
-  --cols 4
-```
-
-## Video Workflow Example
-
-```bash
-mkdir -p /tmp/ai-gif-video/out
-cd /tmp/ai-gif-video
-
-uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill generate-image \
-  --provider grok \
-  --output-image ./out/character.png \
-  --prompt 'an orange crab game asset on pure green background'
-
-uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill generate-video \
-  --provider gemini \
-  --output-video ./out/attack.mp4 \
-  --prompt 'animate the crab performing a quick attack move' \
-  --reference-image ./out/character.png \
-  --duration-seconds 2 \
-  --aspect-ratio 1:1
-
-uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill extract-frames \
-  --input-video ./out/attack.mp4 \
-  --output-dir ./out/frames
-
-uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill cutout-frames \
-  --input-dir ./out/frames \
-  --output-dir ./out/cutout-frames
-
-uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill gif-from-frames \
-  --input-dir ./out/cutout-frames \
-  --output-gif ./out/final.gif
-```
 
 ## Validation
 

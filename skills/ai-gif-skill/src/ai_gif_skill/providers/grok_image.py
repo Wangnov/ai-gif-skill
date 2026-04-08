@@ -14,6 +14,7 @@ from .base import ProviderImageResult
 
 DEFAULT_GROK_IMAGE_MODEL = "grok-imagine-image"
 _BASE_URL = "https://api.x.ai"
+_DOWNLOAD_USER_AGENT = "Mozilla/5.0"
 
 
 def resolve_api_key(explicit_api_key: str | None = None) -> str:
@@ -60,9 +61,31 @@ def _extract_image_url(payload: dict[str, object]) -> str:
     raise RuntimeError("xAI image response did not contain an image URL.")
 
 
+def _extract_image_b64_json(payload: dict[str, object]) -> str | None:
+    data = payload.get("data")
+    if isinstance(data, list):
+        for item in data:
+            if isinstance(item, dict) and isinstance(item.get("b64_json"), str):
+                return item["b64_json"]
+    if isinstance(payload.get("b64_json"), str):
+        return payload["b64_json"]  # type: ignore[return-value]
+    return None
+
+
+def _decode_image(b64_json: str) -> Image.Image:
+    image_bytes = base64.b64decode(b64_json)
+    with Image.open(BytesIO(image_bytes)) as image:
+        return image.copy()
+
+
+def _download_bytes(url: str) -> bytes:
+    req = request.Request(url, headers={"User-Agent": _DOWNLOAD_USER_AGENT})
+    with request.urlopen(req) as response:
+        return response.read()
+
+
 def _download_image(image_url: str) -> Image.Image:
-    with request.urlopen(image_url) as response:
-        body = response.read()
+    body = _download_bytes(image_url)
     with Image.open(BytesIO(body)) as image:
         return image.copy()
 
@@ -81,12 +104,14 @@ def generate_image(
         payload = {
             "model": resolved_model,
             "prompt": prompt,
+            "response_format": "b64_json",
         }
         response = _post_json("/v1/images/generations", payload, resolved_api_key)
     else:
         payload = {
             "model": resolved_model,
             "prompt": prompt,
+            "response_format": "b64_json",
             "images": [
                 {
                     "url": _image_to_data_url(input_image_path),
@@ -96,12 +121,22 @@ def generate_image(
         }
         response = _post_json("/v1/images/edits", payload, resolved_api_key)
 
-    image_url = _extract_image_url(response)
+    image_b64_json = _extract_image_b64_json(response)
+    if image_b64_json is not None:
+        image = _decode_image(image_b64_json)
+        source_url = None
+        source_kind = "b64_json"
+    else:
+        source_url = _extract_image_url(response)
+        image = _download_image(source_url)
+        source_kind = "url"
+
     return ProviderImageResult(
-        image=_download_image(image_url),
+        image=image,
         payload={
             "model": resolved_model,
-            "source_url": image_url,
+            "source_kind": source_kind,
+            "source_url": source_url,
         },
     )
 

@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib import error, request
 
 from .base import ProviderVideoResult
-from .grok_image import resolve_api_key
+from .grok_image import _download_bytes, resolve_api_key
 
 DEFAULT_GROK_VIDEO_MODEL = "grok-imagine-video"
 _BASE_URL = "https://api.x.ai"
@@ -88,8 +88,7 @@ def generate_video(
         time.sleep(_POLL_INTERVAL_SECONDS)
 
     video_url = _extract_video_url(status_payload)
-    with request.urlopen(video_url) as response:
-        video_bytes = response.read()
+    video_bytes = _download_bytes(video_url)
 
     return ProviderVideoResult(
         video_bytes=video_bytes,

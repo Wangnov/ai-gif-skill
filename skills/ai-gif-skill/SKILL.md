@@ -14,6 +14,12 @@ There are two supported paths:
 
 Generation stages can use **Gemini** or **Grok** independently. Local post-processing stages stay the same either way.
 
+Provider recommendation defaults:
+
+- Prefer **Gemini** for the **sheet workflow**
+- Prefer **Grok** for the **video generation step**
+- Do not recommend **Gemini video** by default unless the user explicitly asks for Gemini or for provider comparison
+
 The default grid is `2x8` with `768x768` cells. The default key color is chroma green (`#00FF00`). The default PNG template still includes slightly darker green guide lines so image models are more likely to respect the requested layout while keeping the whole sheet easy to key out later.
 
 # Workflow
@@ -32,6 +38,13 @@ Ask only for the parameters that materially change output:
 Do not ask the user to think in low-level CLI flags if you can translate their intent yourself.
 
 If the user already gave the prompts, provider choices, output filenames, and explicitly asked to continue or generate now, treat that as approved design and execute immediately.
+
+Default recommendation policy:
+
+- If the user wants a **sprite sheet** and has no provider preference, recommend **Gemini**
+- If the user wants a **video workflow** and has no provider preference, recommend **Grok** for `generate-video`
+- If the user wants one safe all-in default for the video workflow, use **Grok image + Grok video**
+- Treat **Gemini video** as a compatibility path, not the default suggestion
 
 ## 2. Sheet Workflow
 
@@ -66,6 +79,7 @@ Behavior:
 - The built-in sheet prompt locks the background color, the exact `rows x cols` frame count, and the visible guide layout from the template.
 - Always pass `--rows` and `--cols` explicitly to `generate-sheet`.
 - The template PNG carries layout metadata. `generate-sheet` validates that metadata before calling the provider.
+- Unless the user explicitly asks otherwise, recommend **Gemini** first for this stage.
 
 Remove the background:
 
@@ -101,7 +115,7 @@ Generate a video from that image:
 
 ```bash
 uv run ai-gif-skill generate-video \
-  --provider gemini \
+  --provider grok \
   --output-video outputs/clip.mp4 \
   --prompt 'Animate this exact character performing a quick action' \
   --reference-image outputs/character.png \
@@ -132,6 +146,13 @@ uv run ai-gif-skill gif-from-frames \
   --input-dir outputs/cutout-frames \
   --output-gif outputs/final.gif
 ```
+
+Behavior:
+
+- Recommend **Grok** for `generate-video` unless the user explicitly asks for Gemini.
+- For compressed video frames, `cutout-frames` often works better when it estimates the border color automatically instead of forcing exact `#00FF00`.
+- If the user explicitly wants Gemini video, warn through your execution choices, not with extra lecture:
+  use Gemini-compatible duration and aspect ratio values and expect less stable keyed backgrounds.
 
 ## 4. Pipeline Wrappers
 
