@@ -1,4 +1,4 @@
 interface:
   display_name: "AI GIF Skill"
-  short_description: "Agent-first sprite-sheet to GIF pipeline"
-  default_prompt: "Use $ai-gif-skill to create a keyed sprite-sheet template, generate frames with Gemini, remove the background, and assemble a GIF."
+  short_description: "Provider-agnostic media-to-GIF workflows"
+  default_prompt: "Use $ai-gif-skill to build GIF assets from keyed sprite sheets or AI-generated video frames with Gemini or Grok, then cut out the background and assemble the final GIF."
