@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
+from PIL import Image
+
 ProviderName = Literal["gemini", "grok"]
 DEFAULT_PROVIDER_NAME: ProviderName = "gemini"
 _SUPPORTED_PROVIDER_NAMES = frozenset({"gemini", "grok"})
@@ -20,20 +22,24 @@ def normalize_provider_name(name: str) -> ProviderName:
 @dataclass(frozen=True)
 class ImageGenerationRequest:
     prompt: str
-    output_image_path: Path
     background: str | None = None
+    input_image_path: Path | None = None
 
 
 @dataclass(frozen=True)
 class SheetGenerationRequest:
     prompt: str
-    input_image_path: Path
-    output_image_path: Path
     background: str
     rows: int
     cols: int
     cell_width: int
     cell_height: int
+
+
+@dataclass(frozen=True)
+class ProviderImageResult:
+    image: Image.Image | object
+    payload: dict[str, object]
 
 
 class ProviderProtocol(Protocol):

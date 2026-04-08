@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import getpass
-import os
+from importlib import import_module
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -44,18 +43,6 @@ def build_generation_prompt(request: GenerationRequest) -> str:
     )
 
 
-def resolve_api_key(explicit_api_key: str | None = None) -> str:
-    if explicit_api_key:
-        return explicit_api_key
-    env_value = os.environ.get("GEMINI_API_KEY")
-    if env_value:
-        return env_value
-    entered = getpass.getpass("GEMINI_API_KEY: ").strip()
-    if not entered:
-        raise ValueError("GEMINI_API_KEY is required.")
-    return entered
-
-
 def validate_template_layout_metadata(
     image: Image.Image,
     request: GenerationRequest,
@@ -86,6 +73,78 @@ def validate_template_layout_metadata(
     return metadata
 
 
+def _load_provider_module(provider: str):
+    normalized_provider = resolve_provider_name(provider)
+    return import_module(f".providers.{normalized_provider}_image", package=__package__)
+
+
+def generate_sheet(
+    *,
+    input_image_path: Path,
+    output_image_path: Path,
+    request: GenerationRequest,
+    provider: str = DEFAULT_PROVIDER_NAME,
+    model: str | None = None,
+    api_key: str | None = None,
+) -> dict[str, object]:
+    with Image.open(input_image_path) as template_image:
+        validate_template_layout_metadata(template_image, request)
+
+    provider_module = _load_provider_module(provider)
+    result = provider_module.generate_sheet(
+        input_image_path=input_image_path,
+        prompt=build_generation_prompt(request),
+        model=model,
+        api_key=api_key,
+    )
+
+    output_image_path.parent.mkdir(parents=True, exist_ok=True)
+    save_png_with_layout_metadata(
+        result.image,
+        output_image_path,
+        SheetLayoutMetadata(
+            rows=request.rows,
+            cols=request.cols,
+            background=normalize_hex_color(request.background),
+        ),
+    )
+    return {
+        **result.payload,
+        "provider": resolve_provider_name(provider),
+        "input_image_path": str(input_image_path),
+        "output_image_path": str(output_image_path),
+        "rows": request.rows,
+        "cols": request.cols,
+        "background": request.background,
+    }
+
+
+def generate_image(
+    *,
+    output_image_path: Path,
+    prompt: str,
+    provider: str = DEFAULT_PROVIDER_NAME,
+    model: str | None = None,
+    api_key: str | None = None,
+    input_image_path: Path | None = None,
+) -> dict[str, object]:
+    provider_module = _load_provider_module(provider)
+    result = provider_module.generate_image(
+        prompt=prompt,
+        input_image_path=input_image_path,
+        model=model,
+        api_key=api_key,
+    )
+    output_image_path.parent.mkdir(parents=True, exist_ok=True)
+    save_png_with_layout_metadata(result.image, output_image_path, metadata=None)
+    return {
+        **result.payload,
+        "provider": resolve_provider_name(provider),
+        "input_image_path": str(input_image_path) if input_image_path is not None else None,
+        "output_image_path": str(output_image_path),
+    }
+
+
 def generate_sheet_with_gemini(
     *,
     input_image_path: Path,
@@ -94,46 +153,11 @@ def generate_sheet_with_gemini(
     model: str = "gemini-2.5-flash-image",
     api_key: str | None = None,
 ) -> dict[str, object]:
-    with Image.open(input_image_path) as template_image:
-        validate_template_layout_metadata(template_image, request)
-        template_payload = template_image.copy()
-
-    from google import genai
-
-    client = genai.Client(api_key=resolve_api_key(api_key))
-    prompt = build_generation_prompt(request)
-    response = client.models.generate_content(
+    return generate_sheet(
+        input_image_path=input_image_path,
+        output_image_path=output_image_path,
+        request=request,
+        provider="gemini",
         model=model,
-        contents=[prompt, template_payload],
+        api_key=api_key,
     )
-    parts = getattr(response, "parts", None)
-    if parts is None and getattr(response, "candidates", None):
-        parts = response.candidates[0].content.parts
-
-    saved = False
-    for part in parts or []:
-        if hasattr(part, "as_image"):
-            image = part.as_image()
-            if image is not None:
-                output_image_path.parent.mkdir(parents=True, exist_ok=True)
-                save_png_with_layout_metadata(
-                    image,
-                    output_image_path,
-                    SheetLayoutMetadata(
-                        rows=request.rows,
-                        cols=request.cols,
-                        background=normalize_hex_color(request.background),
-                    ),
-                )
-                saved = True
-                break
-    if not saved:
-        raise RuntimeError("Gemini response did not contain an image part.")
-    return {
-        "model": model,
-        "input_image_path": str(input_image_path),
-        "output_image_path": str(output_image_path),
-        "rows": request.rows,
-        "cols": request.cols,
-        "background": request.background,
-    }

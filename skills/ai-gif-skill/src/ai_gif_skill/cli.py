@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TextIO
 
 from .cutout import DEFAULT_CUTOUT_MODE, DEFAULT_CUTOUT_TOLERANCE, run_cutout
-from .generate import GenerationRequest, generate_sheet_with_gemini, resolve_provider_name
+from .generate import GenerationRequest, generate_image, generate_sheet, resolve_provider_name
 from .gif import assemble_gif_from_sheet
 from .providers.base import DEFAULT_PROVIDER_NAME
 from .template import (
@@ -51,7 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
     generate_sheet_parser.add_argument("--cell-width", type=int, default=DEFAULT_CELL_WIDTH)
     generate_sheet_parser.add_argument("--cell-height", type=int, default=DEFAULT_CELL_HEIGHT)
     generate_sheet_parser.add_argument("--provider", default=DEFAULT_PROVIDER_NAME)
-    generate_sheet_parser.add_argument("--model", default="gemini-2.5-flash-image")
+    generate_sheet_parser.add_argument("--model")
     generate_sheet_parser.add_argument("--api-key")
 
     generate_image_parser = subparsers.add_parser("generate-image")
@@ -61,7 +61,8 @@ def build_parser() -> argparse.ArgumentParser:
     generate_image_parser.add_argument("--prompt-file", type=Path)
     generate_image_parser.add_argument("--background", default=DEFAULT_KEY_COLOR)
     generate_image_parser.add_argument("--provider", default=DEFAULT_PROVIDER_NAME)
-    generate_image_parser.add_argument("--model", default="gemini-2.5-flash-image")
+    generate_image_parser.add_argument("--input-image", type=Path)
+    generate_image_parser.add_argument("--model")
     generate_image_parser.add_argument("--api-key")
 
     cutout_parser = subparsers.add_parser("cutout")
@@ -118,7 +119,7 @@ def main(argv: list[str] | None = None, stdout: TextIO | None = None, stderr: Te
             )
             payload["command"] = "template"
         elif command_impl == "generate-sheet":
-            resolve_provider_name(args.provider)
+            provider = resolve_provider_name(args.provider)
             request = GenerationRequest(
                 prompt=_read_prompt(args),
                 background=args.background,
@@ -127,18 +128,28 @@ def main(argv: list[str] | None = None, stdout: TextIO | None = None, stderr: Te
                 cell_width=args.cell_width,
                 cell_height=args.cell_height,
             )
-            payload = generate_sheet_with_gemini(
+            payload = generate_sheet(
                 input_image_path=args.input_image,
                 output_image_path=args.output_image,
                 request=request,
+                provider=provider,
                 model=args.model,
                 api_key=args.api_key,
             )
             payload["command"] = command_impl
-            payload["provider"] = args.provider
+            payload["provider"] = provider
         elif command_impl == "generate-image":
-            resolve_provider_name(args.provider)
-            raise NotImplementedError("generate-image is not implemented yet.")
+            provider = resolve_provider_name(args.provider)
+            payload = generate_image(
+                output_image_path=args.output_image,
+                prompt=_read_prompt(args),
+                provider=provider,
+                model=args.model,
+                api_key=args.api_key,
+                input_image_path=args.input_image,
+            )
+            payload["command"] = command_impl
+            payload["provider"] = provider
         elif command_impl == "cutout":
             payload = run_cutout(
                 input_path=args.input_image,

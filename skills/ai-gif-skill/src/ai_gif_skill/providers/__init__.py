@@ -1,6 +1,7 @@
 from .base import (
     DEFAULT_PROVIDER_NAME,
     ImageGenerationRequest,
+    ProviderImageResult,
     ProviderName,
     ProviderProtocol,
     SheetGenerationRequest,
@@ -10,6 +11,7 @@ from .base import (
 __all__ = [
     "DEFAULT_PROVIDER_NAME",
     "ImageGenerationRequest",
+    "ProviderImageResult",
     "ProviderName",
     "ProviderProtocol",
     "SheetGenerationRequest",

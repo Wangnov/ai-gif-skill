@@ -7,8 +7,13 @@ import pytest
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
-from ai_gif_skill.generate import GenerationRequest, generate_sheet_with_gemini
-from ai_gif_skill.providers.base import normalize_provider_name
+from ai_gif_skill.generate import (
+    GenerationRequest,
+    generate_image,
+    generate_sheet,
+    generate_sheet_with_gemini,
+)
+from ai_gif_skill.providers.base import ProviderImageResult, normalize_provider_name
 
 
 def _write_template_png(
@@ -221,3 +226,87 @@ def test_normalize_provider_name_rejects_unknown_provider() -> None:
 
 def test_normalize_provider_name_normalizes_case() -> None:
     assert normalize_provider_name("GeMiNi") == "gemini"
+
+
+def test_generate_sheet_dispatches_to_grok_provider_and_preserves_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    input_path = tmp_path / "template.png"
+    output_path = tmp_path / "generated.png"
+    _write_template_png(input_path, rows=2, cols=4)
+
+    captured: dict[str, object] = {}
+
+    def _fake_generate_sheet(*, input_image_path: Path, prompt: str, model: str | None, api_key: str | None) -> ProviderImageResult:
+        captured["input_image_path"] = input_image_path
+        captured["prompt"] = prompt
+        captured["model"] = model
+        captured["api_key"] = api_key
+        return ProviderImageResult(
+            image=Image.new("RGB", (80, 40), "#00FF00"),
+            payload={"model": model or "grok-imagine-image"},
+        )
+
+    monkeypatch.setattr("ai_gif_skill.providers.grok_image.generate_sheet", _fake_generate_sheet)
+
+    request = GenerationRequest(
+        prompt="test",
+        background="#00FF00",
+        rows=2,
+        cols=4,
+        cell_width=32,
+        cell_height=32,
+    )
+
+    payload = generate_sheet(
+        input_image_path=input_path,
+        output_image_path=output_path,
+        request=request,
+        provider="grok",
+        model="grok-imagine-image",
+        api_key="test-key",
+    )
+
+    assert captured["input_image_path"] == input_path
+    assert "EXACTLY 8 frames" in str(captured["prompt"])
+    assert payload["provider"] == "grok"
+
+    with Image.open(output_path) as image:
+        assert image.info["ai_gif_skill_rows"] == "2"
+        assert image.info["ai_gif_skill_cols"] == "4"
+
+
+def test_generate_image_dispatches_to_grok_provider_without_sheet_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_path = tmp_path / "generated.png"
+    captured: dict[str, object] = {}
+
+    def _fake_generate_image(*, prompt: str, input_image_path: Path | None, model: str | None, api_key: str | None) -> ProviderImageResult:
+        captured["prompt"] = prompt
+        captured["input_image_path"] = input_image_path
+        captured["model"] = model
+        captured["api_key"] = api_key
+        return ProviderImageResult(
+            image=Image.new("RGB", (64, 64), "#123456"),
+            payload={"model": model or "grok-imagine-image"},
+        )
+
+    monkeypatch.setattr("ai_gif_skill.providers.grok_image.generate_image", _fake_generate_image)
+
+    payload = generate_image(
+        output_image_path=output_path,
+        prompt="make a crab",
+        provider="grok",
+        model="grok-imagine-image",
+        api_key="test-key",
+    )
+
+    assert captured["prompt"] == "make a crab"
+    assert payload["provider"] == "grok"
+
+    with Image.open(output_path) as image:
+        assert "ai_gif_skill_rows" not in image.info
+        assert "ai_gif_skill_cols" not in image.info
