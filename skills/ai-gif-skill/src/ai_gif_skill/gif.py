@@ -4,6 +4,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from .frames import list_frame_paths
 from .layout_metadata import read_sheet_layout_metadata
 
 
@@ -53,6 +54,42 @@ def assemble_gif_from_sheet(
         "sheet_path": str(sheet_path),
         "output_path": str(output_path),
         "frames": len(frames),
+        "duration_ms": duration_ms,
+        "loop": loop,
+        "frame_width": frames[0].width,
+        "frame_height": frames[0].height,
+    }
+
+
+def assemble_gif_from_frames(
+    *,
+    frames_dir: Path,
+    output_path: Path,
+    duration_ms: int = 120,
+    loop: int = 0,
+) -> dict[str, object]:
+    frame_paths = list_frame_paths(frames_dir)
+    if not frame_paths:
+        raise ValueError(f"No input frames found in {frames_dir}.")
+    frames = [Image.open(path).convert("RGBA") for path in frame_paths]
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        frames[0].save(
+            output_path,
+            save_all=True,
+            append_images=frames[1:],
+            duration=duration_ms,
+            loop=loop,
+            disposal=2,
+            optimize=True,
+        )
+    finally:
+        for frame in frames:
+            frame.close()
+    return {
+        "frames_dir": str(frames_dir),
+        "output_path": str(output_path),
+        "frames": len(frame_paths),
         "duration_ms": duration_ms,
         "loop": loop,
         "frame_width": frames[0].width,

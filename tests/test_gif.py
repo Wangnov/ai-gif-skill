@@ -4,7 +4,7 @@ import pytest
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
-from ai_gif_skill.gif import assemble_gif_from_sheet
+from ai_gif_skill.gif import assemble_gif_from_frames, assemble_gif_from_sheet
 
 
 def test_assemble_gif_from_sheet_slices_frames_in_row_major_order(tmp_path: Path) -> None:
@@ -59,3 +59,29 @@ def test_assemble_gif_rejects_rows_cols_that_conflict_with_sheet_metadata(tmp_pa
             rows=2,
             cols=3,
         )
+
+
+def test_assemble_gif_from_frames_uses_lexical_frame_order(tmp_path: Path) -> None:
+    frames_dir = tmp_path / "frames"
+    gif_path = tmp_path / "frames.gif"
+    frames_dir.mkdir()
+
+    Image.new("RGBA", (8, 8), (255, 0, 0, 255)).save(frames_dir / "frame-001.png")
+    Image.new("RGBA", (8, 8), (0, 255, 0, 255)).save(frames_dir / "frame-002.png")
+
+    metadata = assemble_gif_from_frames(
+        frames_dir=frames_dir,
+        output_path=gif_path,
+        duration_ms=80,
+    )
+
+    gif = Image.open(gif_path)
+    gif.seek(0)
+    first = gif.convert("RGBA")
+    gif.seek(1)
+    second = gif.convert("RGBA")
+
+    assert metadata["frames"] == 2
+    assert metadata["duration_ms"] == 80
+    assert first.getpixel((4, 4))[:3] == (255, 0, 0)
+    assert second.getpixel((4, 4))[:3] == (0, 255, 0)

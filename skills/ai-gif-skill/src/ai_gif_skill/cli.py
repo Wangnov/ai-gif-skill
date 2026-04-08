@@ -6,9 +6,10 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
-from .cutout import DEFAULT_CUTOUT_MODE, DEFAULT_CUTOUT_TOLERANCE, run_cutout
+from .cutout import DEFAULT_CUTOUT_MODE, DEFAULT_CUTOUT_TOLERANCE, run_cutout, run_cutout_frames
+from .frames import extract_frames
 from .generate import GenerationRequest, generate_image, generate_sheet, resolve_provider_name
-from .gif import assemble_gif_from_sheet
+from .gif import assemble_gif_from_frames, assemble_gif_from_sheet
 from .providers.base import DEFAULT_PROVIDER_NAME
 from .template import (
     DEFAULT_CELL_HEIGHT,
@@ -88,14 +89,36 @@ def build_parser() -> argparse.ArgumentParser:
     cutout_parser.add_argument("--background-color")
     cutout_parser.add_argument("--tolerance", type=int, default=DEFAULT_CUTOUT_TOLERANCE)
 
-    gif_parser = subparsers.add_parser("gif")
-    gif_parser.set_defaults(command_impl="gif-from-sheet")
-    gif_parser.add_argument("--input-sheet", type=Path, required=True)
-    gif_parser.add_argument("--output-gif", type=Path, required=True)
-    gif_parser.add_argument("--rows", type=int, required=True)
-    gif_parser.add_argument("--cols", type=int, required=True)
-    gif_parser.add_argument("--duration-ms", type=int, default=120)
-    gif_parser.add_argument("--loop", type=int, default=0)
+    extract_frames_parser = subparsers.add_parser("extract-frames")
+    extract_frames_parser.set_defaults(command_impl="extract-frames")
+    extract_frames_parser.add_argument("--input-video", type=Path, required=True)
+    extract_frames_parser.add_argument("--output-dir", type=Path, required=True)
+    extract_frames_parser.add_argument("--fps", type=float)
+
+    cutout_frames_parser = subparsers.add_parser("cutout-frames")
+    cutout_frames_parser.set_defaults(command_impl="cutout-frames")
+    cutout_frames_parser.add_argument("--input-dir", type=Path, required=True)
+    cutout_frames_parser.add_argument("--output-dir", type=Path, required=True)
+    cutout_frames_parser.add_argument("--mode", choices=("color", "rembg"), default=DEFAULT_CUTOUT_MODE)
+    cutout_frames_parser.add_argument("--model", default="isnet-anime")
+    cutout_frames_parser.add_argument("--background-color")
+    cutout_frames_parser.add_argument("--tolerance", type=int, default=DEFAULT_CUTOUT_TOLERANCE)
+
+    gif_sheet_parser = subparsers.add_parser("gif-from-sheet", aliases=["gif"])
+    gif_sheet_parser.set_defaults(command_impl="gif-from-sheet")
+    gif_sheet_parser.add_argument("--input-sheet", type=Path, required=True)
+    gif_sheet_parser.add_argument("--output-gif", type=Path, required=True)
+    gif_sheet_parser.add_argument("--rows", type=int, required=True)
+    gif_sheet_parser.add_argument("--cols", type=int, required=True)
+    gif_sheet_parser.add_argument("--duration-ms", type=int, default=120)
+    gif_sheet_parser.add_argument("--loop", type=int, default=0)
+
+    gif_frames_parser = subparsers.add_parser("gif-from-frames")
+    gif_frames_parser.set_defaults(command_impl="gif-from-frames")
+    gif_frames_parser.add_argument("--input-dir", type=Path, required=True)
+    gif_frames_parser.add_argument("--output-gif", type=Path, required=True)
+    gif_frames_parser.add_argument("--duration-ms", type=int, default=120)
+    gif_frames_parser.add_argument("--loop", type=int, default=0)
 
     return parser
 
@@ -191,6 +214,31 @@ def main(argv: list[str] | None = None, stdout: TextIO | None = None, stderr: Te
                 tolerance=args.tolerance,
             )
             payload["command"] = "cutout"
+        elif command_impl == "extract-frames":
+            payload = extract_frames(
+                video_path=args.input_video,
+                output_dir=args.output_dir,
+                fps=args.fps,
+            )
+            payload["command"] = command_impl
+        elif command_impl == "cutout-frames":
+            payload = run_cutout_frames(
+                input_dir=args.input_dir,
+                output_dir=args.output_dir,
+                mode=args.mode,
+                model=args.model,
+                background_color=args.background_color,
+                tolerance=args.tolerance,
+            )
+            payload["command"] = command_impl
+        elif command_impl == "gif-from-frames":
+            payload = assemble_gif_from_frames(
+                frames_dir=args.input_dir,
+                output_path=args.output_gif,
+                duration_ms=args.duration_ms,
+                loop=args.loop,
+            )
+            payload["command"] = command_impl
         else:
             payload = assemble_gif_from_sheet(
                 sheet_path=args.input_sheet,

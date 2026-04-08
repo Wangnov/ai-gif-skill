@@ -193,6 +193,23 @@ def test_generate_alias_maps_to_generate_sheet_mode(tmp_path: Path) -> None:
     assert args.command_impl == "generate-sheet"
 
 
+def test_gif_from_frames_command_accepts_frame_directory(tmp_path: Path) -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "gif-from-frames",
+            "--input-dir",
+            str(tmp_path / "frames"),
+            "--output-gif",
+            str(tmp_path / "final.gif"),
+        ]
+    )
+
+    assert args.command == "gif-from-frames"
+    assert args.command_impl == "gif-from-frames"
+
+
 def test_gif_command_requires_explicit_rows_and_cols(tmp_path: Path) -> None:
     parser = build_parser()
 
