@@ -210,6 +210,67 @@ def test_gif_from_frames_command_accepts_frame_directory(tmp_path: Path) -> None
     assert args.command_impl == "gif-from-frames"
 
 
+def test_sheet_pipeline_command_accepts_single_provider(tmp_path: Path) -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "sheet-pipeline",
+            "--template-image",
+            str(tmp_path / "template.png"),
+            "--generated-image",
+            str(tmp_path / "generated.png"),
+            "--cutout-image",
+            str(tmp_path / "cutout.png"),
+            "--output-gif",
+            str(tmp_path / "final.gif"),
+            "--prompt",
+            "test",
+            "--rows",
+            "2",
+            "--cols",
+            "4",
+            "--provider",
+            "grok",
+        ]
+    )
+
+    assert args.command_impl == "sheet-pipeline"
+    assert args.provider == "grok"
+
+
+def test_video_pipeline_command_accepts_separate_image_and_video_providers(tmp_path: Path) -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "video-pipeline",
+            "--generated-image",
+            str(tmp_path / "generated.png"),
+            "--generated-video",
+            str(tmp_path / "generated.mp4"),
+            "--frames-dir",
+            str(tmp_path / "frames"),
+            "--cutout-frames-dir",
+            str(tmp_path / "cutout-frames"),
+            "--output-gif",
+            str(tmp_path / "final.gif"),
+            "--image-prompt",
+            "image",
+            "--video-prompt",
+            "video",
+            "--image-provider",
+            "gemini",
+            "--video-provider",
+            "grok",
+        ]
+    )
+
+    assert args.command_impl == "video-pipeline"
+    assert args.image_provider == "gemini"
+    assert args.video_provider == "grok"
+
+
 def test_gif_command_requires_explicit_rows_and_cols(tmp_path: Path) -> None:
     parser = build_parser()
 
