@@ -87,7 +87,7 @@ uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill generate-sheet \
   --cell-width 384 \
   --cell-height 384 \
   --background '#00FF00' \
-  --prompt 'one original cute beast, pokemon-inspired, 2D cel-shaded, non-pixel-art, one coherent idle animation'
+  --prompt 'one original cute beast, pokemon-inspired but fully original, clean 2D cel-shaded anime game art, non-pixel-art, full body, locked front 3/4 view, exactly one character, 8-frame idle loop for a game sprite sheet, torso stays centered on the same vertical axis in every frame, feet stay planted in the same place, do not rotate to side view, use clear full-body motion: chest inhale and exhale, slight up-down body bob, alternating ear tilt, tail curl left to center to right to center, subtle paw lift and settle, brief blink near frame 4, return close to the starting pose by frame 8 for a clean loop, each frame should show a readable pose difference and not only facial expression changes, no scene, no props'
 
 uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill cutout \
   --input-image ./out/generated.png \
