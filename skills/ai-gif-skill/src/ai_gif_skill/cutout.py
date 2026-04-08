@@ -7,6 +7,7 @@ from typing import Callable
 
 from PIL import Image
 
+from .frames import list_frame_paths, read_frames_manifest, write_frames_manifest
 from .layout_metadata import read_sheet_layout_metadata, save_png_with_layout_metadata
 from .template import DEFAULT_KEY_COLOR, normalize_hex_color
 
@@ -171,4 +172,51 @@ def run_cutout(
         "width": width,
         "height": height,
         "image_mode": image_mode,
+    }
+
+
+def run_cutout_frames(
+    *,
+    input_dir: Path,
+    output_dir: Path,
+    mode: str = DEFAULT_CUTOUT_MODE,
+    model: str = "isnet-anime",
+    background_color: str | None = None,
+    tolerance: int = DEFAULT_CUTOUT_TOLERANCE,
+    remove_background: Callable[..., bytes] | None = None,
+) -> dict[str, object]:
+    frame_paths = list_frame_paths(input_dir)
+    if not frame_paths:
+        raise ValueError(f"No input frames found in {input_dir}.")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for frame_path in frame_paths:
+        run_cutout(
+            input_path=frame_path,
+            output_path=output_dir / frame_path.name,
+            mode=mode,
+            model=model,
+            background_color=background_color,
+            tolerance=tolerance,
+            remove_background=remove_background,
+        )
+
+    manifest = read_frames_manifest(input_dir) or {}
+    with Image.open(output_dir / frame_paths[0].name) as first_frame:
+        width, height = first_frame.size
+    output_manifest = {
+        **manifest,
+        "frame_count": len(frame_paths),
+        "width": width,
+        "height": height,
+    }
+    write_frames_manifest(output_dir, output_manifest)
+    return {
+        "input_dir": str(input_dir),
+        "output_dir": str(output_dir),
+        "frame_count": len(frame_paths),
+        "fps": output_manifest.get("fps"),
+        "mode": mode,
+        "background_color": background_color,
+        "tolerance": tolerance if mode == "color" else None,
     }
