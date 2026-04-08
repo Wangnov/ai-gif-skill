@@ -145,6 +145,31 @@ def test_generate_image_command_accepts_provider_flag_without_grid(tmp_path: Pat
     assert args.provider == "gemini"
 
 
+def test_generate_video_command_accepts_provider_and_reference_image(tmp_path: Path) -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "generate-video",
+            "--output-video",
+            str(tmp_path / "generated.mp4"),
+            "--prompt",
+            "test",
+            "--provider",
+            "grok",
+            "--duration-seconds",
+            "2",
+            "--reference-image",
+            str(tmp_path / "ref.png"),
+        ]
+    )
+
+    assert args.command == "generate-video"
+    assert args.command_impl == "generate-video"
+    assert args.provider == "grok"
+    assert args.duration_seconds == 2
+
+
 def test_generate_alias_maps_to_generate_sheet_mode(tmp_path: Path) -> None:
     parser = build_parser()
 

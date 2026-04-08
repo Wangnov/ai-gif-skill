@@ -42,5 +42,11 @@ class ProviderImageResult:
     payload: dict[str, object]
 
 
+@dataclass(frozen=True)
+class ProviderVideoResult:
+    video_bytes: bytes
+    payload: dict[str, object]
+
+
 class ProviderProtocol(Protocol):
     def provider_name(self) -> ProviderName: ...

@@ -4,6 +4,7 @@ from .base import (
     ProviderImageResult,
     ProviderName,
     ProviderProtocol,
+    ProviderVideoResult,
     SheetGenerationRequest,
     normalize_provider_name,
 )
@@ -14,6 +15,7 @@ __all__ = [
     "ProviderImageResult",
     "ProviderName",
     "ProviderProtocol",
+    "ProviderVideoResult",
     "SheetGenerationRequest",
     "normalize_provider_name",
 ]

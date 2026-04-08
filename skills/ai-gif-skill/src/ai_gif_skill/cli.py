@@ -20,6 +20,7 @@ from .template import (
     GridSpec,
     write_template_assets,
 )
+from .video import VideoGenerationRequest, generate_video
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -64,6 +65,19 @@ def build_parser() -> argparse.ArgumentParser:
     generate_image_parser.add_argument("--input-image", type=Path)
     generate_image_parser.add_argument("--model")
     generate_image_parser.add_argument("--api-key")
+
+    generate_video_parser = subparsers.add_parser("generate-video")
+    generate_video_parser.set_defaults(command_impl="generate-video")
+    generate_video_parser.add_argument("--output-video", type=Path, required=True)
+    generate_video_parser.add_argument("--prompt")
+    generate_video_parser.add_argument("--prompt-file", type=Path)
+    generate_video_parser.add_argument("--provider", default=DEFAULT_PROVIDER_NAME)
+    generate_video_parser.add_argument("--model")
+    generate_video_parser.add_argument("--api-key")
+    generate_video_parser.add_argument("--duration-seconds", type=int, default=2)
+    generate_video_parser.add_argument("--reference-image", type=Path)
+    generate_video_parser.add_argument("--aspect-ratio")
+    generate_video_parser.add_argument("--resolution")
 
     cutout_parser = subparsers.add_parser("cutout")
     cutout_parser.set_defaults(command_impl="cutout")
@@ -147,6 +161,23 @@ def main(argv: list[str] | None = None, stdout: TextIO | None = None, stderr: Te
                 model=args.model,
                 api_key=args.api_key,
                 input_image_path=args.input_image,
+            )
+            payload["command"] = command_impl
+            payload["provider"] = provider
+        elif command_impl == "generate-video":
+            provider = resolve_provider_name(args.provider)
+            payload = generate_video(
+                request=VideoGenerationRequest(
+                    prompt=_read_prompt(args),
+                    duration_seconds=args.duration_seconds,
+                    output_path=args.output_video,
+                    reference_image_path=args.reference_image,
+                    aspect_ratio=args.aspect_ratio,
+                    resolution=args.resolution,
+                ),
+                provider=provider,
+                model=args.model,
+                api_key=args.api_key,
             )
             payload["command"] = command_impl
             payload["provider"] = provider
