@@ -99,6 +99,75 @@ def test_generate_command_requires_explicit_rows_and_cols(tmp_path: Path) -> Non
         )
 
 
+def test_generate_sheet_command_accepts_provider_flag(tmp_path: Path) -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "generate-sheet",
+            "--input-image",
+            str(tmp_path / "template.png"),
+            "--output-image",
+            str(tmp_path / "generated.png"),
+            "--prompt",
+            "test",
+            "--rows",
+            "2",
+            "--cols",
+            "4",
+            "--provider",
+            "gemini",
+        ]
+    )
+
+    assert args.command == "generate-sheet"
+    assert args.command_impl == "generate-sheet"
+    assert args.provider == "gemini"
+
+
+def test_generate_image_command_accepts_provider_flag_without_grid(tmp_path: Path) -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "generate-image",
+            "--output-image",
+            str(tmp_path / "generated.png"),
+            "--prompt",
+            "test",
+            "--provider",
+            "gemini",
+        ]
+    )
+
+    assert args.command == "generate-image"
+    assert args.command_impl == "generate-image"
+    assert args.provider == "gemini"
+
+
+def test_generate_alias_maps_to_generate_sheet_mode(tmp_path: Path) -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "generate",
+            "--input-image",
+            str(tmp_path / "template.png"),
+            "--output-image",
+            str(tmp_path / "generated.png"),
+            "--prompt",
+            "test",
+            "--rows",
+            "2",
+            "--cols",
+            "4",
+        ]
+    )
+
+    assert args.command == "generate"
+    assert args.command_impl == "generate-sheet"
+
+
 def test_gif_command_requires_explicit_rows_and_cols(tmp_path: Path) -> None:
     parser = build_parser()
 

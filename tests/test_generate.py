@@ -8,6 +8,7 @@ from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
 from ai_gif_skill.generate import GenerationRequest, generate_sheet_with_gemini
+from ai_gif_skill.providers.base import normalize_provider_name
 
 
 def _write_template_png(
@@ -211,3 +212,12 @@ def test_generate_sheet_with_gemini_handles_image_like_parts_that_only_save_to_p
     with Image.open(output_path) as image:
         assert image.info["ai_gif_skill_rows"] == "2"
         assert image.info["ai_gif_skill_cols"] == "4"
+
+
+def test_normalize_provider_name_rejects_unknown_provider() -> None:
+    with pytest.raises(ValueError, match="Unknown provider"):
+        normalize_provider_name("unknown")
+
+
+def test_normalize_provider_name_normalizes_case() -> None:
+    assert normalize_provider_name("GeMiNi") == "gemini"

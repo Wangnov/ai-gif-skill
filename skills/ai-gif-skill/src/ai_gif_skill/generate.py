@@ -8,6 +8,7 @@ from pathlib import Path
 from PIL import Image
 
 from .layout_metadata import SheetLayoutMetadata, read_sheet_layout_metadata, save_png_with_layout_metadata
+from .providers.base import DEFAULT_PROVIDER_NAME, normalize_provider_name
 from .template import normalize_hex_color
 
 
@@ -19,6 +20,10 @@ class GenerationRequest:
     cols: int
     cell_width: int
     cell_height: int
+
+
+def resolve_provider_name(provider: str | None = None) -> str:
+    return normalize_provider_name(provider or DEFAULT_PROVIDER_NAME)
 
 
 def build_generation_prompt(request: GenerationRequest) -> str:
