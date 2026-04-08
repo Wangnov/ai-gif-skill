@@ -1,18 +1,20 @@
 ---
 name: ai-gif-skill
-description: Use when building sprite-sheet animation assets from AI-generated frames that need a pure key-color template, reliable solid-color background removal, or final GIF assembly.
+description: Use when building GIF-ready assets from sprite sheets or AI-generated video frames that need keyed backgrounds, reliable cutout, and final GIF assembly.
 ---
 
 # Overview
 
-Use this skill to turn an animation idea into a keyed sprite sheet and final GIF with a predictable four-step workflow:
+Use this skill when the end goal is a GIF asset and you want a reliable, file-based workflow instead of ad-hoc model prompting.
 
-1. Generate a keyed SVG/PNG template.
-2. Generate the sprite sheet with Gemini.
-3. Remove the solid-color background with color keying.
-4. Slice the sheet and assemble a GIF.
+There are two supported paths:
 
-The default grid is `2x8` with `768x768` cells. The default key color is chroma green (`#00FF00`). The default PNG template also includes slightly darker green guide lines so image models are more likely to respect the requested layout while still keeping the whole sheet easy to key out later. Switch to chroma blue only when the subject itself contains a lot of green.
+1. **Sheet workflow**: `template -> generate-sheet -> cutout -> gif-from-sheet`
+2. **Video workflow**: `generate-image -> generate-video -> extract-frames -> cutout-frames -> gif-from-frames`
+
+Generation stages can use **Gemini** or **Grok** independently. Local post-processing stages stay the same either way.
+
+The default grid is `2x8` with `768x768` cells. The default key color is chroma green (`#00FF00`). The default PNG template still includes slightly darker green guide lines so image models are more likely to respect the requested layout while keeping the whole sheet easy to key out later.
 
 # Workflow
 
@@ -20,20 +22,20 @@ The default grid is `2x8` with `768x768` cells. The default key color is chroma 
 
 Ask only for the parameters that materially change output:
 
-- asset prompt
+- whether the user wants the **sheet workflow** or the **video workflow**
+- the asset prompt or prompts
+- generation provider when it matters (`gemini` or `grok`)
 - rows / cols if not the default `2x8`
 - cell size if not the default `768x768`
 - background key color if chroma green would clash with the subject
 
 Do not ask the user to think in low-level CLI flags if you can translate their intent yourself.
 
-If the user already gave the asset prompt, layout, style, output filenames, and explicitly asked to continue or generate now, treat that as approved design and execute immediately. Do not stop for an extra confirmation step in that case.
+If the user already gave the prompts, provider choices, output filenames, and explicitly asked to continue or generate now, treat that as approved design and execute immediately.
 
-When the user asks for a non-default layout such as `2x4`, `3x3`, or `4x4`, treat that exact grid as authoritative. A `3x3` sheet is not an error when the user wants `3x3`; the only real error is letting downstream commands drift away from the template layout.
+## 2. Sheet Workflow
 
-## 2. Generate the Template
-
-If you are already inside the skill root, run:
+Generate the template:
 
 ```bash
 uv run ai-gif-skill template \
@@ -46,52 +48,26 @@ uv run ai-gif-skill template \
   --output-png outputs/template.png
 ```
 
-From an arbitrary output directory after installation, use:
+Generate the sheet:
 
 ```bash
-uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill template \
-  --rows 2 \
-  --cols 8 \
-  --cell-width 768 \
-  --cell-height 768 \
-  --background '#00FF00' \
-  --output-svg ./out/template.svg \
-  --output-png ./out/template.png
-```
-
-The PNG now contains visible green-on-green guide lines by default. Keep them on unless you have a strong reason to disable them with `--no-guide-grid`; they materially improve layout adherence in real image generation runs. The SVG still carries invisible cell metadata.
-
-Always pass `--rows` and `--cols` explicitly when the layout matters, including the `template` step. That keeps the template itself unambiguous before any generation starts.
-
-## 3. Generate the Sprite Sheet with Gemini
-
-Run:
-
-```bash
-uv run ai-gif-skill generate \
+uv run ai-gif-skill generate-sheet \
+  --provider gemini \
   --input-image outputs/template.png \
   --output-image outputs/generated.png \
+  --rows 2 \
+  --cols 8 \
   --prompt 'YOUR ASSET PROMPT HERE'
 ```
 
 Behavior:
 
-- Prefer `GEMINI_API_KEY` from the environment.
-- If it is missing, the script prompts for it.
-- The built-in prompt template locks the background color, locks the exact `rows x cols` frame count, and tells the model to follow the visible guide grid from the input template image.
-- Always pass `--rows` and `--cols` explicitly to `generate`. Do not rely on CLI defaults for layout-sensitive steps.
-- Treat `ai-gif-skill generate` as a local CLI invocation. Do not invoke separate `web-access` or browser setup just because Gemini is used under the hood.
-- The template PNG carries layout metadata. `generate` now validates your requested layout against that metadata and should fail loudly if you pass the wrong grid.
+- Prefer `GEMINI_API_KEY` or `XAI_API_KEY` from the environment, depending on `--provider`.
+- The built-in sheet prompt locks the background color, the exact `rows x cols` frame count, and the visible guide layout from the template.
+- Always pass `--rows` and `--cols` explicitly to `generate-sheet`.
+- The template PNG carries layout metadata. `generate-sheet` validates that metadata before calling the provider.
 
-If you need longer prompts, write them to a file and pass `--prompt-file`.
-
-When using `codex exec` from a throwaway work directory, explicitly tell the agent to call the installed project with `uv run --project ~/.agents/skills/ai-gif-skill ai-gif-skill ...`. Otherwise `uv run ai-gif-skill ...` may fail because the current directory is not the skill project.
-
-When operating through `codex exec`, run one shell command per exec call. Do not chain commands with `&&`, pipes, or multi-step cleanup snippets. Overwrite the known output files directly and only verify that `./out` contains the expected deliverables.
-
-## 4. Remove the Background
-
-Run:
+Remove the background:
 
 ```bash
 uv run ai-gif-skill cutout \
@@ -99,28 +75,10 @@ uv run ai-gif-skill cutout \
   --output-image outputs/cutout.png
 ```
 
-Default behavior is `--mode color`, which samples the border color and removes that keyed background. This is the best default for AI frames generated from a pure-color sheet.
-
-Use extra flags only when you need them:
-
-- leave `--background-color` unset when the generated background drifted slightly and you want auto-detection
-- pass `--background-color '#00FF00'` when you know the exact key color
-- raise `--tolerance` when a little fringe remains around the subject
-- switch to `--mode rembg --model isnet-anime` only when the background is no longer a reliable solid color
-
-Real-world fallback pattern:
-
-- if the first generation ignores the requested layout, regenerate from the same template with a stricter prompt that repeats the exact `rows x cols` requirement
-- if the first cutout leaves a faint green fringe, raise `--tolerance` slightly before considering any other approach
-- if guide lines survive the first color cutout, that usually means the generated image darkened the green grid slightly; raise `--tolerance` a little before trying anything more invasive
-- do at most one extra color-key retry after the default cutout; do not keep laddering `tolerance` upward in multiple rounds during `codex exec`
-
-## 5. Assemble the GIF
-
-Run:
+Assemble the GIF:
 
 ```bash
-uv run ai-gif-skill gif \
+uv run ai-gif-skill gif-from-sheet \
   --input-sheet outputs/cutout.png \
   --output-gif outputs/final.gif \
   --rows 2 \
@@ -128,15 +86,70 @@ uv run ai-gif-skill gif \
   --duration-ms 120
 ```
 
-This slices frames in row-major order.
+## 3. Video Workflow
 
-Always pass `--rows` and `--cols` explicitly to `gif` so slicing matches the current sheet instead of any default layout.
+Generate a single reference image:
 
-The generated and cutout PNGs also carry layout metadata now. `gif` validates your requested `rows x cols` against that metadata and should fail loudly instead of silently slicing the wrong grid.
+```bash
+uv run ai-gif-skill generate-image \
+  --provider grok \
+  --output-image outputs/character.png \
+  --prompt 'YOUR ASSET PROMPT HERE'
+```
 
-Do not waste time deleting temporary prompt files outside `./out` during `codex exec` runs. The success condition is that `./out` contains only the final five deliverables.
+Generate a video from that image:
 
-If you absolutely need a trial cutout for comparison, write it outside the working directory, such as a system temp path, and do not spend time deleting it. Never use `rm` or `apply_patch` to clean up binary PNG trial files during `codex exec`.
+```bash
+uv run ai-gif-skill generate-video \
+  --provider gemini \
+  --output-video outputs/clip.mp4 \
+  --prompt 'Animate this exact character performing a quick action' \
+  --reference-image outputs/character.png \
+  --duration-seconds 2 \
+  --aspect-ratio 1:1
+```
+
+Extract frames:
+
+```bash
+uv run ai-gif-skill extract-frames \
+  --input-video outputs/clip.mp4 \
+  --output-dir outputs/frames
+```
+
+Remove the background from every frame:
+
+```bash
+uv run ai-gif-skill cutout-frames \
+  --input-dir outputs/frames \
+  --output-dir outputs/cutout-frames
+```
+
+Assemble the GIF:
+
+```bash
+uv run ai-gif-skill gif-from-frames \
+  --input-dir outputs/cutout-frames \
+  --output-gif outputs/final.gif
+```
+
+## 4. Pipeline Wrappers
+
+If you already know all paths and want fewer commands, use:
+
+- `sheet-pipeline`
+- `video-pipeline`
+
+These are thin wrappers over the stage commands above. They are convenient, but the stage commands remain the primary contract.
+
+## 5. Compatibility
+
+Legacy aliases remain supported:
+
+- `generate` -> `generate-sheet`
+- `gif` -> `gif-from-sheet`
+
+In `codex exec`, run one shell command per exec call. Avoid `&&`, pipes, and cleanup snippets. Overwrite the known output files directly and keep the useful artifacts on disk.
 
 # CLI Contract
 
@@ -147,7 +160,7 @@ The CLI is agent-first:
 - explicit flags only
 - no hidden jobs, no sessions, no daemon state
 
-Read [references/cli-contract.md](references/cli-contract.md) only when you need the exact payload shape or command-by-command contract.
+Read [references/cli-contract.md](references/cli-contract.md) when you need the exact payload shape.
 
 # Resources
 
@@ -155,9 +168,14 @@ Read [references/cli-contract.md](references/cli-contract.md) only when you need
 
 - `uv run ai-gif-skill ...`: primary entrypoint for every command
 - `scripts/template_sheet.py`: compatibility wrapper for template generation
-- `scripts/generate_with_gemini.py`: compatibility wrapper for Gemini generation
-- `scripts/cutout_with_rembg.py`: legacy compatibility wrapper for the `cutout` command
-- `scripts/assemble_gif.py`: compatibility wrapper for GIF assembly
+- `scripts/generate_with_gemini.py`: compatibility wrapper for sheet generation
+- `scripts/generate_image.py`: wrapper for `generate-image`
+- `scripts/generate_video.py`: wrapper for `generate-video`
+- `scripts/extract_frames.py`: wrapper for `extract-frames`
+- `scripts/cutout_frames.py`: wrapper for `cutout-frames`
+- `scripts/cutout_with_rembg.py`: legacy compatibility wrapper for `cutout`
+- `scripts/assemble_gif.py`: compatibility wrapper for `gif-from-sheet`
+- `scripts/assemble_gif_from_frames.py`: wrapper for `gif-from-frames`
 
 ## references/
 

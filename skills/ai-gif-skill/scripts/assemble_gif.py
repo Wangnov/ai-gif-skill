@@ -8,4 +8,4 @@ from ai_gif_skill.cli import main
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(["gif", *sys.argv[1:]]))
+    raise SystemExit(main(["gif-from-sheet", *sys.argv[1:]]))

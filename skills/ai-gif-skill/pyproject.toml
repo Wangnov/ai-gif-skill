@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "ai-gif-skill"
 version = "0.1.0"
-description = "Agent-first sprite-sheet template, generation, cutout, and GIF assembly toolkit."
+description = "Agent-first provider-agnostic media-to-GIF toolkit for sprite sheets and video frames."
 requires-python = ">=3.11"
 dependencies = [
   "google-genai>=1.30.0",
